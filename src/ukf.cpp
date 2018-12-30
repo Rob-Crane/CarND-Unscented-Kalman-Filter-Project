@@ -1,6 +1,8 @@
+#include <cmath>
 #include "ukf.h"
 #include "Eigen/Dense"
 
+using Matrix5d = Eigen::Matrix<double, 5, 5>;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
@@ -25,6 +27,8 @@ UKF::UKF() {
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   std_yawdd_ = 30;
+
+  lambda_ = -2.0;
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -71,6 +75,9 @@ void UKF::Prediction(double delta_t) {
    * Modify the state vector, x_. Predict sigma points, the state, 
    * and the state covariance matrix.
    */
+  Matrix5d sigmas = std::sqrt(lambda_ + 5) * P_.llt().matrixL();
+  Matrix5d Xsig;
+  Xsig << x_, sigmas.colwise() + x_, (-1 * sigmas).colwise() + x_;
 }
 
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
