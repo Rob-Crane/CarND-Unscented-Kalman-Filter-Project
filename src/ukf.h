@@ -20,7 +20,7 @@ class UKF {
    * ProcessMeasurement
    * @param meas_package The latest measurement data of either radar or laser
    */
-  void ProcessMeasurement(MeasurementPackage meas_package);
+  void ProcessMeasurement(const MeasurementPackage& meas_package);
 
   /**
    * Prediction Predicts sigma points, the state, and the state covariance
@@ -52,13 +52,13 @@ class UKF {
   bool use_radar_;
 
   // state vector: [pos1 pos2 vel_abs yaw_angle yaw_rate] in SI units and rad
-  Eigen::VectorXd x_;
+  Eigen::Matrix<double, 5, 1> x_;
 
   // state covariance matrix
-  Eigen::MatrixXd P_;
+  Eigen::Matrix<double, 5, 5> P_;
 
   // predicted sigma points matrix
-  Eigen::MatrixXd Xsig_pred_;
+  //Eigen::MatrixXd Xsig_pred_;
 
   // time when the state is true, in us
   long long time_us_;

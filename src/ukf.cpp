@@ -10,6 +10,9 @@ using Eigen::VectorXd;
  * Initializes Unscented Kalman filter
  */
 UKF::UKF() {
+
+  is_initialized_ = false;
+
   // if this is false, laser measurements will be ignored (except during init)
   use_laser_ = true;
 
@@ -17,10 +20,10 @@ UKF::UKF() {
   use_radar_ = true;
 
   // initial state vector
-  x_ = VectorXd(5);
+  x_ = Matrix<double, 5, 1>();
 
   // initial covariance matrix
-  P_ = MatrixXd(5, 5);
+  P_ = Matrix<double, 5, 5>::Identity();
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   std_a_ = 30;
@@ -53,20 +56,31 @@ UKF::UKF() {
   /**
    * End DO NOT MODIFY section for measurement noise values 
    */
-  
-  /**
-   * TODO: Complete the initialization. See ukf.h for other member properties.
-   * Hint: one or more values initialized above might be wildly off...
-   */
 }
 
 UKF::~UKF() {}
 
-void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
-  /**
-   * TODO: Complete this function! Make sure you switch between lidar and radar
-   * measurements.
-   */
+void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
+
+  const VectorXd& measurements = meas_package.raw_measurements_;
+  if (!is_initialized_) {
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+      x_ << measurements[0],
+           measurements[1],
+           0.0,
+           0.0,
+           0.0;
+    } else { // Initialize with Radar measurement.
+      float x_comp = std::cos(measurements[1]);
+      float y_comp = std::sin(measurements[1]);
+      x_ << measurements[0] * x_comp,
+            measurements[0] * y_comp,
+            0.0,
+            0.0,
+            0.0;
+    }
+    is_initialized_ = true;
+  }
 }
 
 void UKF::Prediction(double delta_t) {
