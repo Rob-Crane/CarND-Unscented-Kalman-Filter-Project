@@ -57,9 +57,6 @@ class UKF {
   // state covariance matrix
   Eigen::Matrix<double, 5, 5> P_;
 
-  // predicted sigma points matrix
-  Eigen::Matrix<double, 5, 1> Xsig_pred_;
-
   // time when the state is true, in us
   long long time_us_;
 
@@ -94,7 +91,10 @@ class UKF {
 
   // Number of sigma points.
   static constexpr int n_pts_ = 2*n_aug_ + 1;
-  //
+
+  // predicted sigma points matrix
+  Eigen::Matrix<double, 5, n_pts_> Xsig_pred_;
+
   // Weights of sigma points
   Eigen::Matrix<double, n_pts_, 1>  weights_;
 

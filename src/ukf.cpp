@@ -4,6 +4,7 @@
 
 using Eigen::Map;
 using Eigen::Matrix;
+using Eigen::Matrix2d;
 using Eigen::Vector2d;
 using Eigen::VectorXd;
 
@@ -150,7 +151,6 @@ void UKF::Prediction(double delta_t) {
     Xsig_pred_(3,i) = new_yaw;
     Xsig_pred_(4,i) = new_yaw_rate;
 
-    // TODO Assertion failing here!
     x_ = (Xsig_pred_.array().rowwise() *
           weights_.transpose().array()).rowwise().sum();
     Matrix<double, n_x_, n_x_> P = Matrix<double, n_x_, n_x_>::Zero();
@@ -172,6 +172,12 @@ void UKF::UpdateLidar(const VectorXd&  measurements) {
   const Matrix<double, 2, n_pts_> Zsig = 
        Xsig_pred_.block<2, n_pts_>(0,0);
    Vector2d z_pred = Zsig * weights_;
+   Matrix2d S = Matrix2d::Zero();
+   for (int i = 0; i < n_pts_; ++i) {
+     Vector2d resid = Zsig.col(i) - z_pred;
+     S+= weights_(i) * resid * resid.transpose();
+   }
+   // TODO Add sensor variances (R)
   
 }
 
