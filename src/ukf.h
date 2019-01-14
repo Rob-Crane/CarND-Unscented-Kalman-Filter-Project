@@ -33,7 +33,7 @@ class UKF {
    * Updates the state and the state covariance matrix using a laser measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateLidar(MeasurementPackage meas_package);
+  void UpdateLidar(const Eigen::VectorXd& measurements);
 
   /**
    * Updates the state and the state covariance matrix using a radar measurement
@@ -58,10 +58,12 @@ class UKF {
   Eigen::Matrix<double, 5, 5> P_;
 
   // predicted sigma points matrix
-  //Eigen::MatrixXd Xsig_pred_;
+  Eigen::Matrix<double, 5, 1> Xsig_pred_;
 
   // time when the state is true, in us
   long long time_us_;
+
+  long long previous_timestamp_;
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
   double std_a_;
@@ -84,14 +86,17 @@ class UKF {
   // Radar measurement noise standard deviation radius change in m/s
   double std_radrd_ ;
 
-  // Weights of sigma points
-  Eigen::VectorXd weights_;
-
   // State dimension
-  int n_x_;
+  static constexpr int n_x_ = 5;
 
   // Augmented state dimension
-  int n_aug_;
+  static constexpr int n_aug_ = n_x_ + 2;
+
+  // Number of sigma points.
+  static constexpr int n_pts_ = 2*n_aug_ + 1;
+  //
+  // Weights of sigma points
+  Eigen::Matrix<double, n_pts_, 1>  weights_;
 
   // Sigma point spreading parameter
   double lambda_;

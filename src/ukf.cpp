@@ -2,8 +2,9 @@
 #include "ukf.h"
 #include "Eigen/Dense"
 
+using Eigen::Map;
 using Eigen::Matrix;
-using Eigen::MatrixXd;
+using Eigen::Vector2d;
 using Eigen::VectorXd;
 
 /**
@@ -32,6 +33,8 @@ UKF::UKF() {
   std_yawdd_ = 30;
 
   lambda_ = -2.0;
+  weights_ = Matrix<double, n_pts_, 1>::Constant(1.0 / 2.0 / (lambda_ + n_aug_));
+  weights_(0) *= 2*lambda_;
   
   /**
    * DO NOT MODIFY measurement noise values below.
@@ -81,33 +84,38 @@ void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
     }
     is_initialized_ = true;
   }
+  else {
+    UKF::Prediction(meas_package.timestamp_ - previous_timestamp_);
+    if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
+        UKF::UpdateLidar(measurements);
+    } else {
+        UKF::UpdateRadar(meas_package);
+    }
+  }
+  previous_timestamp_ = meas_package.timestamp_;
 }
 
 void UKF::Prediction(double delta_t) {
   // Create augmented covariance matrix and x.
-  constexpr int n = 5;
-  constexpr int n_aug = n+2;
-  Matrix<double, n_aug, n_aug> P_aug = Matrix<double, n_aug, n_aug>::Zero();
-  P_aug.topLeftCorner<n, n>() = P_;
-  P_aug(n,n) = std_a_ * std_a_;
-  P_aug(n+1,n+1) = std_yawdd_ * std_yawdd_; 
+  Matrix<double, n_aug_, n_aug_> P_aug = Matrix<double, n_aug_, n_aug_>::Zero();
+  P_aug.topLeftCorner<5, 5>() = P_;
+  P_aug(5,5) = std_a_ * std_a_;
+  P_aug(6,6) = std_yawdd_ * std_yawdd_; 
 
-  Matrix<double, n_aug, 1> x_aug;
+  Matrix<double, n_aug_, 1> x_aug;
   x_aug << x_, 0.0, 0,0;
 
   // Calculate sigma points.
-  double coef = std::sqrt(lambda_ + n_aug);
-  Matrix<double, n_aug, n_aug> sigmas = 
-    coef * Matrix<double, n_aug, n_aug>(P_aug.llt().matrixL());
-  constexpr int n_pts = 2*n_aug + 1;
-  Matrix<double, n_aug, n_pts> Xsig_aug;
+  double coef = std::sqrt(lambda_ + n_aug_);
+  Matrix<double, n_aug_, n_aug_> sigmas = 
+    coef * Matrix<double, n_aug_, n_aug_>(P_aug.llt().matrixL());
+  Matrix<double, n_aug_, n_pts_> Xsig_aug;
   Xsig_aug << x_aug, sigmas.colwise() + x_aug, (-1 * sigmas).colwise() + x_aug;
 
   // Calculate predictions for the sigma points.
-  Matrix<double, n, n_pts> Xsig_pred;
   double delta_t2 = delta_t * delta_t;
 
-  for (int i = 0; i < n_pts; ++i) {
+  for (int i = 0; i < n_pts_; ++i) {
     double px = Xsig_aug(0, i);
     double py = Xsig_aug(1,i);
     double v = Xsig_aug(2,i);
@@ -136,33 +144,35 @@ void UKF::Prediction(double delta_t) {
       new_py += v/yaw_rate*(-1.0*cos(yaw + yaw_rate*delta_t) + cos_yaw);
       new_yaw += yaw_rate * delta_t;
     }
-    Xsig_pred(0,i) = new_px;
-    Xsig_pred(1,i) = new_py;
-    Xsig_pred(2,i) = new_v;
-    Xsig_pred(3,i) = new_yaw;
-    Xsig_pred(4,i) = new_yaw_rate;
+    Xsig_pred_(0,i) = new_px;
+    Xsig_pred_(1,i) = new_py;
+    Xsig_pred_(2,i) = new_v;
+    Xsig_pred_(3,i) = new_yaw;
+    Xsig_pred_(4,i) = new_yaw_rate;
 
-    Matrix<double, n_pts, 1>  weights = 
-       Matrix<double, n_pts, 1>::Constant(1.0 / 2.0 / (lambda_ + n_aug));
-    weights(0) *= 2*lambda_;
-    x_ = (Xsig_pred.array().rowwise() *
-          weights.transpose().array()).rowwise().sum();
-    Matrix<double, n, n> P = Matrix<double, n, n>::Zero();
-    for (int i = 0; i < n_pts; ++i) {
-      Matrix<double, n, 1> residual = Xsig_pred.col(i) - x_;
-      P += weights(i) * residual * residual.transpose();
+    // TODO Assertion failing here!
+    x_ = (Xsig_pred_.array().rowwise() *
+          weights_.transpose().array()).rowwise().sum();
+    Matrix<double, n_x_, n_x_> P = Matrix<double, n_x_, n_x_>::Zero();
+    for (int i = 0; i < n_pts_; ++i) {
+      Matrix<double, n_x_, 1> residual = Xsig_pred_.col(i) - x_;
+      P += weights_(i) * residual * residual.transpose();
     }
     P_ = P;
   }
 }
 
-void UKF::UpdateLidar(MeasurementPackage meas_package) {
+void UKF::UpdateLidar(const VectorXd&  measurements) {
   /**
    * TODO: Complete this function! Use lidar data to update the belief 
    * about the object's position. Modify the state vector, x_, and 
    * covariance, P_.
    * You can also calculate the lidar NIS, if desired.
    */
+  const Matrix<double, 2, n_pts_> Zsig = 
+       Xsig_pred_.block<2, n_pts_>(0,0);
+   Vector2d z_pred = Zsig * weights_;
+  
 }
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
