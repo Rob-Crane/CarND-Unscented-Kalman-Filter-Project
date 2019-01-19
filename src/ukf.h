@@ -39,7 +39,7 @@ class UKF {
    * Updates the state and the state covariance matrix using a radar measurement
    * @param meas_package The measurement at k+1
    */
-  void UpdateRadar(MeasurementPackage meas_package);
+  void UpdateRadar(const Eigen::VectorXd& measurements);
 
 
   // initially set to false, set to true in first call of ProcessMeasurement
@@ -78,12 +78,15 @@ class UKF {
 
   // Radar measurement noise standard deviation radius in m
   double std_radr_;
+  double var_radr_;
 
   // Radar measurement noise standard deviation angle in rad
   double std_radphi_;
+  double var_radphi_;
 
   // Radar measurement noise standard deviation radius change in m/s
   double std_radrd_ ;
+  double var_radrd_ ;
 
   // State dimension
   static constexpr int n_x_ = 5;

@@ -5,7 +5,9 @@
 using Eigen::Map;
 using Eigen::Matrix;
 using Eigen::Matrix2d;
+using Eigen::Matrix3d;
 using Eigen::Vector2d;
+using Eigen::Vector3d;
 using Eigen::VectorXd;
 
 /**
@@ -62,6 +64,10 @@ UKF::UKF() {
    */
   var_laspx_ = std_laspx_ * std_laspx_;
   var_laspy_ = std_laspy_ * std_laspy_;
+
+  var_radr_ = std_radr_ * std_radr_;
+  var_radphi_ = std_radphi_ * std_radphi_;
+  var_radrd_ = std_radrd_ * std_radrd_;
 }
 
 
@@ -95,7 +101,7 @@ void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
     if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
         UKF::UpdateLidar(measurements);
     } else {
-        UKF::UpdateRadar(meas_package);
+        UKF::UpdateRadar(measurements);
     }
   }
   previous_timestamp_ = meas_package.timestamp_;
@@ -167,16 +173,10 @@ void UKF::Prediction(double delta_t) {
 }
 
 void UKF::UpdateLidar(const VectorXd&  measurements) {
-  /**
-   * TODO: Complete this function! Use lidar data to update the belief 
-   * about the object's position. Modify the state vector, x_, and 
-   * covariance, P_.
-   * You can also calculate the lidar NIS, if desired.
-   */
+  // TODO: calculate the lidar NIS
   const Matrix<double, 2, n_pts_> Zsig = 
        Xsig_pred_.block<2, n_pts_>(0,0);
    Vector2d z_pred = Zsig * weights_;
-   Matrix<double, n_x_, n_pts_> Xres = Xsig_pred_.colwise() - x_;
    Matrix<double, 2, n_pts_> Zres = Zsig.colwise() - z_pred;
    Matrix2d S = Matrix2d::Zero();
    for (int i = 0; i < n_pts_; ++i) {
@@ -186,6 +186,7 @@ void UKF::UpdateLidar(const VectorXd&  measurements) {
    S(0,0) += var_laspx_;
    S(1,1) += var_laspy_;
 
+   Matrix<double, n_x_, n_pts_> Xres = Xsig_pred_.colwise() - x_;
    Matrix<double, n_x_, 2> T = Xres * weights_.asDiagonal() * Zres.transpose();
    Matrix<double, n_x_, 2> K = T * S.inverse();
 
@@ -193,11 +194,36 @@ void UKF::UpdateLidar(const VectorXd&  measurements) {
    P_ -= K*S*K.transpose();
 }
 
-void UKF::UpdateRadar(MeasurementPackage meas_package) {
+void UKF::UpdateRadar(const VectorXd&  measurements) {
   /**
    * TODO: Complete this function! Use radar data to update the belief 
    * about the object's position. Modify the state vector, x_, and 
    * covariance, P_.
    * You can also calculate the radar NIS, if desired.
    */
+  Matrix<double, 3, n_pts_> Zsig;
+  for (int i = 0; i < n_pts_; ++i) {
+    double px = Xsig_pred_(0,i);
+    double py = Xsig_pred_(1,i);
+    double v = Xsig_pred_(2,i);
+    double yaw = Xsig_pred_(3,i);
+    Zsig(0, i) = sqrt(px*px + py*py);
+    Zsig(1, i) = atan2(py, px);
+    Zsig(2, i) = v*(px*cos(yaw) + py*sin(yaw)) / Zsig(0, i);
+  }
+  Vector3d z_pred = Zsig*weights_;
+  Matrix<double, 3, n_pts_> Zres = Zsig.colwise() - z_pred;
+  Matrix3d S = Matrix3d::Zero();
+  for (int i = 0; i < n_pts_; ++i) {
+    Vector3d resid = Zres.col(i);
+    S+= weights_(i) * resid * resid.transpose();
+  }
+  S(0,0) += var_radr_; 
+  S(1,1) += var_radphi_; 
+  S(2,2) += var_radrd_; 
+  Matrix<double, n_x_, n_pts_> Xres = Xsig_pred_.colwise() - x_;
+  Matrix<double, n_x_, 3> T = Xres * weights_.asDiagonal() * Zres.transpose();
+  Matrix<double, n_x_, 3> K = T * S.inverse();
+  x_ += K*(measurements - z_pred);
+  P_ -= K*S*K.transpose();
 }
