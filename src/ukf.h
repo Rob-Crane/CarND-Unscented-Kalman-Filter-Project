@@ -70,9 +70,11 @@ class UKF {
 
   // Laser measurement noise standard deviation position1 in m
   double std_laspx_;
+  double var_laspx_;
 
   // Laser measurement noise standard deviation position2 in m
   double std_laspy_;
+  double var_laspy_;
 
   // Radar measurement noise standard deviation radius in m
   double std_radr_;

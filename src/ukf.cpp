@@ -28,10 +28,10 @@ UKF::UKF() {
   P_ = Matrix<double, 5, 5>::Identity();
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 5.0;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 30;
+  std_yawdd_ = 1.0;
 
   lambda_ = -2.0;
   weights_ = Matrix<double, n_pts_, 1>::Constant(1.0 / 2.0 / (lambda_ + n_aug_));
@@ -60,9 +60,13 @@ UKF::UKF() {
   /**
    * End DO NOT MODIFY section for measurement noise values 
    */
+  var_laspx_ = std_laspx_ * std_laspx_;
+  var_laspy_ = std_laspy_ * std_laspy_;
 }
 
+
 UKF::~UKF() {}
+
 
 void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
 
@@ -86,7 +90,8 @@ void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
     is_initialized_ = true;
   }
   else {
-    UKF::Prediction(meas_package.timestamp_ - previous_timestamp_);
+    double delta_t = (meas_package.timestamp_ - previous_timestamp_) / 1.0E6;
+    UKF::Prediction(delta_t);
     if (meas_package.sensor_type_ == MeasurementPackage::LASER) {
         UKF::UpdateLidar(measurements);
     } else {
@@ -104,7 +109,7 @@ void UKF::Prediction(double delta_t) {
   P_aug(6,6) = std_yawdd_ * std_yawdd_; 
 
   Matrix<double, n_aug_, 1> x_aug;
-  x_aug << x_, 0.0, 0,0;
+  x_aug << x_, 0.0, 0.0;
 
   // Calculate sigma points.
   double coef = std::sqrt(lambda_ + n_aug_);
@@ -150,16 +155,15 @@ void UKF::Prediction(double delta_t) {
     Xsig_pred_(2,i) = new_v;
     Xsig_pred_(3,i) = new_yaw;
     Xsig_pred_(4,i) = new_yaw_rate;
-
-    x_ = (Xsig_pred_.array().rowwise() *
-          weights_.transpose().array()).rowwise().sum();
-    Matrix<double, n_x_, n_x_> P = Matrix<double, n_x_, n_x_>::Zero();
-    for (int i = 0; i < n_pts_; ++i) {
-      Matrix<double, n_x_, 1> residual = Xsig_pred_.col(i) - x_;
-      P += weights_(i) * residual * residual.transpose();
-    }
-    P_ = P;
   }
+  x_ = (Xsig_pred_.array().rowwise() *
+        weights_.transpose().array()).rowwise().sum();
+  Matrix<double, n_x_, n_x_> P = Matrix<double, n_x_, n_x_>::Zero();
+  for (int i = 0; i < n_pts_; ++i) {
+    Matrix<double, n_x_, 1> residual = Xsig_pred_.col(i) - x_;
+    P += weights_(i) * residual * residual.transpose();
+  }
+  P_ = P;
 }
 
 void UKF::UpdateLidar(const VectorXd&  measurements) {
@@ -172,13 +176,21 @@ void UKF::UpdateLidar(const VectorXd&  measurements) {
   const Matrix<double, 2, n_pts_> Zsig = 
        Xsig_pred_.block<2, n_pts_>(0,0);
    Vector2d z_pred = Zsig * weights_;
+   Matrix<double, n_x_, n_pts_> Xres = Xsig_pred_.colwise() - x_;
+   Matrix<double, 2, n_pts_> Zres = Zsig.colwise() - z_pred;
    Matrix2d S = Matrix2d::Zero();
    for (int i = 0; i < n_pts_; ++i) {
-     Vector2d resid = Zsig.col(i) - z_pred;
+     Vector2d resid = Zres.col(i);
      S+= weights_(i) * resid * resid.transpose();
    }
-   // TODO Add sensor variances (R)
-  
+   S(0,0) += var_laspx_;
+   S(1,1) += var_laspy_;
+
+   Matrix<double, n_x_, 2> T = Xres * weights_.asDiagonal() * Zres.transpose();
+   Matrix<double, n_x_, 2> K = T * S.inverse();
+
+   x_ += K*(measurements - z_pred);
+   P_ -= K*S*K.transpose();
 }
 
 void UKF::UpdateRadar(MeasurementPackage meas_package) {
