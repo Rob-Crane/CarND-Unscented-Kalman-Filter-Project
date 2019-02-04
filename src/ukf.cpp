@@ -1,4 +1,6 @@
 #include <cmath>
+#include <cstdlib>
+#include <string>
 #include "ukf.h"
 #include "Eigen/Dense"
 
@@ -30,15 +32,23 @@ UKF::UKF() {
   P_ = Matrix<double, 5, 5>::Identity();
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 5.0;
+  std_a_ = 2.0;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 1.0;
+  std_yawdd_ = 0.5;
+
+  // If NIS_DATA_DIR environment variable set, write NIS to data file.
+  if (const char* nis_dir = std::getenv("NIS_DATA_DIR")) {
+    char buffer[30];
+    std::sprintf(buffer, "a%.2f_%.2f.csv", std_a_, std_yawdd_);
+    std::string nis_filename = std::string(nis_dir) + "/" + std::string(buffer);
+    nis_file_.open(nis_filename);
+  }
 
   lambda_ = -2.0;
   weights_ = Matrix<double, n_pts_, 1>::Constant(1.0 / 2.0 / (lambda_ + n_aug_));
   weights_(0) *= 2*lambda_;
-  
+ 
   /**
    * DO NOT MODIFY measurement noise values below.
    * These are provided by the sensor manufacturer.
@@ -71,7 +81,9 @@ UKF::UKF() {
 }
 
 
-UKF::~UKF() {}
+UKF::~UKF() {
+  nis_file_.close();
+}
 
 
 void UKF::ProcessMeasurement(const MeasurementPackage& meas_package) {
@@ -190,7 +202,14 @@ void UKF::UpdateLidar(const VectorXd&  measurements) {
    Matrix<double, n_x_, 2> T = Xres * weights_.asDiagonal() * Zres.transpose();
    Matrix<double, n_x_, 2> K = T * S.inverse();
 
-   x_ += K*(measurements - z_pred);
+   Vector2d innovation = measurements - z_pred;
+   // Calculate normalized innovation squared (NIS)
+   double nis = innovation.transpose() * S.inverse() * innovation;
+   if (nis_file_.is_open()) {
+     nis_file_ << "LASER," << std::to_string(nis) << "," << std::endl;
+   }
+
+   x_ += K*(innovation);
    P_ -= K*S*K.transpose();
 }
 
@@ -224,6 +243,12 @@ void UKF::UpdateRadar(const VectorXd&  measurements) {
   Matrix<double, n_x_, n_pts_> Xres = Xsig_pred_.colwise() - x_;
   Matrix<double, n_x_, 3> T = Xres * weights_.asDiagonal() * Zres.transpose();
   Matrix<double, n_x_, 3> K = T * S.inverse();
-  x_ += K*(measurements - z_pred);
+  Vector3d innovation = measurements - z_pred;
+  // Calculate normalized innovation squared (NIS)
+  double nis = innovation.transpose() * S.inverse() * innovation;
+   if (nis_file_.is_open()) {
+     nis_file_ << "RADAR," << std::to_string(nis) << "," << std::endl;
+   }
+  x_ += K*innovation;
   P_ -= K*S*K.transpose();
 }

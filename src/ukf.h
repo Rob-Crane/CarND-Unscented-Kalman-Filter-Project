@@ -1,6 +1,8 @@
 #ifndef UKF_H
 #define UKF_H
 
+#include <fstream>
+
 #include "Eigen/Dense"
 #include "measurement_package.h"
 
@@ -67,6 +69,9 @@ class UKF {
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   double std_yawdd_;
+
+  // Directory location to write NIS data.
+  std::ofstream nis_file_;
 
   // Laser measurement noise standard deviation position1 in m
   double std_laspx_;
